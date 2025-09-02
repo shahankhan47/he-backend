@@ -1,0 +1,253 @@
+{
+	"info": {
+		"_postman_id": "753712ae-dc02-4e0b-a6a9-4fbeb4cfa68e",
+		"name": "harmony_v1",
+		"schema": "https://schema.getpostman.com/json/collection/v2.0.0/collection.json",
+		"_exporter_id": "31924852",
+		"_collection_link": "https://planetary-space-903883.postman.co/workspace/New-Team-Workspace~d3f1f589-65dc-4ae9-8c90-4a61ff232389/collection/31924852-753712ae-dc02-4e0b-a6a9-4fbeb4cfa68e?action=share&source=collection_link&creator=31924852"
+	},
+	"item": [
+		{
+			"name": "users",
+			"item": [
+				{
+					"name": "create a user",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Ajith Simha T N\",\n    \"email\": \"ajithsimha@gmail.com\",\n    \"password\": \"ajith123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{environment}}/api/users"
+					},
+					"response": []
+				},
+				{
+					"name": "get a user",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{environment}}/api/users/1"
+					},
+					"response": []
+				},
+				{
+					"name": "get all users",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{environment}}/api/users"
+					},
+					"response": []
+				},
+				{
+					"name": "update a user",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Amith Simha T N\",\n    \"email\": \"amithtel@gmail.com\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{environment}}/api/users/1"
+					},
+					"response": []
+				},
+				{
+					"name": "delete a user",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": "{{environment}}/api/users/1"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "auth",
+			"item": [
+				{
+					"name": "login",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"amithsimha@gmail.com\",\n    \"password\": \"amith123\"\n}\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{environment}}/api/auth/login"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "projects",
+			"item": [
+				{
+					"name": "get all projects",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{environment}}/api/projects"
+					},
+					"response": []
+				},
+				{
+					"name": "add a new project",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "email",
+									"value": "ajith@ajith.com",
+									"type": "text"
+								},
+								{
+									"key": "project_name",
+									"value": "postman1",
+									"type": "text"
+								},
+								{
+									"key": "file",
+									"type": "file",
+									"src": "/Users/ajithsimha/Downloads/harmonyengine-ui-master.zip"
+								}
+							]
+						},
+						"url": "{{environment}}/api/projects"
+					},
+					"response": []
+				},
+				{
+					"name": "get project summary",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"ajith@ajith.com\",\n    \"projectId\": \"2ea29d62-86f5-4dc7-9b71-313ed7a9c32f\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{environment}}/api/projects/summary"
+					},
+					"response": []
+				},
+				{
+					"name": "get project mermaid",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"ajith@ajith.com\",\n    \"projectId\": \"2ea29d62-86f5-4dc7-9b71-313ed7a9c32f\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{environment}}/api/projects/mermaid"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "chats",
+			"item": [
+				{
+					"name": "get chat history",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{environment}}/api/messages?email=ajith@ajith.com&projectId=2ea29d62-86f5-4dc7-9b71-313ed7a9c32f",
+							"host": [
+								"{{environment}}"
+							],
+							"path": [
+								"api",
+								"messages"
+							],
+							"query": [
+								{
+									"key": "email",
+									"value": "ajith@ajith.com"
+								},
+								{
+									"key": "projectId",
+									"value": "2ea29d62-86f5-4dc7-9b71-313ed7a9c32f"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "send a message",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"ajith@ajith.com\",\n    \"projectId\": \"2ea29d62-86f5-4dc7-9b71-313ed7a9c32f\",\n    \"userQuestion\": \"Give me a jist of the project\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{environment}}/api/messages"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "health",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": "{{environment}}/api/"
+			},
+			"response": []
+		}
+	]
+}
