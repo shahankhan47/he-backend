@@ -31,6 +31,10 @@ class ProjectsController {
     const owner_email = req.user?.email;
     const { project_name, project_description, collaborators } = req.body;
     try {
+      console.log(
+        `[ProjectsController] Initializing project - Name: ${project_name}, Owner: ${owner_email}`
+      );
+
       const processedPayload = Array.isArray(collaborators)
         ? collaborators.reduce((acc, collaborator) => {
             acc[collaborator.email] = collaborator.role;
@@ -38,6 +42,9 @@ class ProjectsController {
           }, {})
         : {};
 
+      console.log(
+        "[ProjectsController] Sending project initialization request to Python API"
+      );
       const response = await axios.post(
         `${process.env.PYTHON_URL}/initialize_project`,
         processedPayload,
@@ -50,17 +57,26 @@ class ProjectsController {
         }
       );
 
+      console.log(
+        `[ProjectsController] Creating project in database - ID: ${response.data.project_id}`
+      );
       await Project.create({
         id: response.data.project_id,
         createdBy: req.user.id,
         projectName: project_name,
       });
 
+      console.log("[ProjectsController] Project initialized successfully");
       return res.status(200).json({
         message: "Project initialized successfully",
         project_id: response.data.project_id,
       });
     } catch (error) {
+      console.error("[ProjectsController] Project initialization failed:", {
+        project_name,
+        owner_email,
+        error: error.response?.data || error.message,
+      });
       return res
         .status(400)
         .json({ error: error.response?.data || error.message });
@@ -80,7 +96,6 @@ class ProjectsController {
       const {
         project_id,
         repositoryUrl,
-        azure_project_id,
         isPrivateRepository: isPrivate,
         branch,
         source = "github",
@@ -102,7 +117,7 @@ class ProjectsController {
           await this.handleAzureUpload(req, formData, {
             repositoryId: repositoryUrl,
             branch,
-            projectId: azure_project_id,
+            projectId: project_id,
           });
         } else if (source === "gitlab") {
           await this.handleGitlabUpload(req, formData, {
@@ -119,60 +134,26 @@ class ProjectsController {
             projectId: project_id,
           });
         }
-
-        // Handle repository upload response
-        const response = await this.sendToPythonAPI(
-          req.user.email,
-          project_id,
-          formData,
-          endpoint,
-          source
-        );
-
-        return endpoint === "addcodebase"
-          ? res.status(201).json({ message: "Codebase uploaded successfully" })
-          : res.status(200).json({
-              message: "Project synced successfully",
-              details: response.data,
-            });
       } else if (file) {
-        // Validate file for manual upload
-        if (!file.mimetype || !file.mimetype.includes("zip")) {
-          return res.status(400).json({
-            error: "Only ZIP files are supported for manual upload",
-          });
-        }
-
-        // Check file size (150MB limit)
-        const maxSize = 150 * 1024 * 1024; // 150MB in bytes
-        if (file.size > maxSize) {
-          return res.status(400).json({
-            error: `File size exceeds 150MB limit. Current size: ${(
-              file.size /
-              (1024 * 1024)
-            ).toFixed(2)}MB`,
-          });
-        }
-
-        const pythonFormData = await this.handleManualUpload(formData, file);
-        const uploadSource = "manual";
-
-        const response = await this.sendToPythonAPI(
-          req.user.email,
-          project_id,
-          pythonFormData,
-          endpoint,
-          uploadSource
-        );
-
-        return endpoint === "addcodebase"
-          ? res.status(201).json({ message: "Codebase uploaded successfully" })
-          : res.status(200).json({
-              message: "Project synced successfully",
-              details: response.data,
-            });
+        await this.handleManualUpload(formData, file);
       }
+
+      const response = await this.sendToPythonAPI(
+        req.user.email,
+        project_id,
+        formData,
+        endpoint,
+        source
+      );
+
+      return endpoint === "addcodebase"
+        ? res.status(201).json({ message: "Codebase uploaded successfully" })
+        : res.status(200).json({
+            message: "Project synced successfully",
+            details: response.data,
+          });
     } catch (error) {
+      console.error(`Error in ${endpoint}:`, error);
       return res.status(500).json({ error: error.message });
     }
   }
@@ -183,11 +164,16 @@ class ProjectsController {
     { repositoryUrl, isPrivateRepository, branch = "main", projectId }
   ) {
     try {
+      console.log(
+        `[ProjectsController] Handling GitHub upload - Project: ${projectId}, URL: ${repositoryUrl}, Branch: ${branch}`
+      );
+
       const user = await User.findOne({
         where: { email: req.user.email },
         attributes: ["githubToken"],
       });
 
+      console.log("[ProjectsController] Downloading repository from GitHub");
       const zipData = await githubService.downloadRepository(
         repositoryUrl,
         branch,
@@ -204,9 +190,14 @@ class ProjectsController {
       });
 
       if (!project) {
-        return;
+        // this is allowed for old version compatibility
+        return console.log(
+          "[ProjectsController] GitHub upload completed successfully"
+        );
       }
-
+      console.log(
+        `[ProjectsController] Updating project branch and source - ID: ${projectId}`
+      );
       await project.update({
         branchName: branch,
         source: "github",
@@ -214,7 +205,7 @@ class ProjectsController {
 
       if (!project.webhookId && isPrivateRepository) {
         console.log(
-          "🔗 [ProjectsController] Setting up GitHub webhook for private repository"
+          `[ProjectsController] Setting up GitHub webhook for project: ${projectId}`
         );
         await webhookService.setupGithubWebhook(
           projectId,
@@ -222,33 +213,37 @@ class ProjectsController {
           branch,
           req.user
         );
-        console.log("✅ [ProjectsController] GitHub webhook setup completed");
       }
+
+      console.log("[ProjectsController] GitHub upload completed successfully");
     } catch (error) {
+      console.error("[ProjectsController] GitHub upload failed:", {
+        projectId,
+        repositoryUrl,
+        branch,
+        error: error.message,
+      });
       throw new Error(`Github download failed: ${error.message}`);
     }
   }
 
-  async handleAzureUpload(req, formData, { repositoryId, branch, projectId }) {
+  async handleAzureUpload(
+    req,
+    formData,
+    { repositoryId, branch = "main", projectId }
+  ) {
     try {
-
       const user = await User.findOne({
         where: { email: req.user.email },
         attributes: ["azureAccessToken", "defaultAzureOrganization"],
       });
-      console.log(user)
-
-      if (!user.azurePat || !user.azureOrg) {
-        throw new Error(
-          "Azure credentials not found. Please connect your Azure DevOps account first."
-        );
-      }
 
       const data = await azureDevopsService.downloadRepository(
+        user.azureAccessToken,
+        user.defaultAzureOrganization,
+        projectId,
         repositoryId,
-        branch,
-        user.azurePat,
-        user.azureOrg
+        branch
       );
 
       formData.append("file", data, {
@@ -256,8 +251,10 @@ class ProjectsController {
         contentType: "application/zip",
       });
 
+      // Save zip file locally for manual verification
       const tempDir = path.join(__dirname, "../../temp");
 
+      // Create temp directory if it doesn't exist
       if (!fs.existsSync(tempDir)) {
         fs.mkdirSync(tempDir, { recursive: true });
       }
@@ -267,7 +264,11 @@ class ProjectsController {
         `verify_${projectId}_${Date.now()}.zip`
       );
       fs.writeFileSync(tempFilePath, data);
+      console.log(
+        `[ProjectsController] Saved zip file for verification at: ${tempFilePath}`
+      );
 
+      // download the above zip file locally
       await Project.update(
         {
           source: "azure",
@@ -279,18 +280,13 @@ class ProjectsController {
         }
       );
     } catch (error) {
+      console.error(error);
       throw new Error(`Azure download failed: ${error.message}`);
     }
   }
 
-  async handleManualUpload(frontendFormData, file) {
-    // Create a new FormData object for the Python API
-    const pythonFormData = new FormData();
-    pythonFormData.append("file", file.buffer, file.originalname);
-    pythonFormData.append("source", "manual");
-
-    // Return the FormData object for the Python API
-    return pythonFormData;
+  async handleManualUpload(formData, file) {
+    formData.append("file", file.buffer, file.originalname);
   }
 
   async handleGitlabUpload(
@@ -299,6 +295,10 @@ class ProjectsController {
     { repositoryUrl, isPrivateRepository, branch = "main", projectId }
   ) {
     try {
+      console.log(
+        `[ProjectsController] Handling GitLab upload - Project: ${projectId}, URL: ${repositoryUrl}, Branch: ${branch}`
+      );
+
       const user = await User.findOne({
         where: { email: req.user.email },
         attributes: ["gitlabToken"],
@@ -309,6 +309,9 @@ class ProjectsController {
           "GitLab token not found. Please connect your GitLab account first."
         );
       }
+
+      console.log("[ProjectsController] Downloading repository from GitLab");
+      console.log("Deplyment trigger");
 
       const zipData = await gitlabService.downloadRepository(
         repositoryUrl,
@@ -326,14 +329,33 @@ class ProjectsController {
       });
 
       if (!project) {
-        return;
+        // this is allowed for old version compatibility
+        return console.log(
+          "[ProjectsController] GitLab upload completed successfully"
+        );
       }
-
+      console.log(
+        `[ProjectsController] Updating project branch and source - ID: ${projectId}`
+      );
       await project.update({
         branchName: branch,
         source: "gitlab",
       });
+
+      // Note: GitLab webhook setup can be implemented later if needed
+      // if (!project.webhookId && isPrivateRepository) {
+      //   console.log(`[ProjectsController] Setting up GitLab webhook for project: ${projectId}`);
+      //   await webhookService.setupGitlabWebhook(projectId, repositoryUrl, branch, req.user);
+      // }
+
+      console.log("[ProjectsController] GitLab upload completed successfully");
     } catch (error) {
+      console.error("[ProjectsController] GitLab upload failed:", {
+        projectId,
+        repositoryUrl,
+        branch,
+        error: error.message,
+      });
       throw new Error(`GitLab download failed: ${error.message}`);
     }
   }
@@ -345,14 +367,9 @@ class ProjectsController {
     url.searchParams.append("commit_id", "manual");
     url.searchParams.append("file_source", source);
 
-    try {
-      const response = await axios.post(url.toString(), formData, {
-        headers: { ...formData.getHeaders() },
-      });
-      return response;
-    } catch (error) {
-      throw error;
-    }
+    return axios.post(url.toString(), formData, {
+      headers: { ...formData.getHeaders() },
+    });
   }
 
   async getAllProjects(req, res) {
@@ -401,6 +418,7 @@ class ProjectsController {
       });
       res.status(201).json(processedProjects);
     } catch (error) {
+      console.error("Error in getAllProjects:", error);
       res.status(400).json({ error: error.message });
     }
   }
@@ -418,9 +436,7 @@ class ProjectsController {
             "Content-Type": "multipart/form-data",
           },
         })
-        .catch((error) => {
-          console.log(error);
-        });
+        .catch((error) => console.log(error));
 
       res
         .status(200)
@@ -444,9 +460,7 @@ class ProjectsController {
             "Content-Type": "multipart/form-data",
           },
         })
-        .catch((error) => {
-          console.log(error);
-        });
+        .catch((error) => console.log(error));
 
       res.status(200).json(response.data?.result);
     } catch (error) {
@@ -475,9 +489,7 @@ class ProjectsController {
             },
           }
         )
-        .catch((error) => {
-          console.log(error);
-        });
+        .catch((error) => console.log(error));
       if (response.status == 200) {
         res.status(200).json({ message: "Project deleted successfully" });
       } else {
@@ -511,8 +523,11 @@ class ProjectsController {
         }
       );
 
+      console.log("Python API response:", response.data);
+
       return res.status(200).json(response.data);
     } catch (error) {
+      console.error("Error getting collaborators:", error);
       return res.status(500).json({
         success: false,
         message: "Failed to get collaborators",
@@ -553,6 +568,7 @@ class ProjectsController {
         message: "Collaborator added successfully",
       });
     } catch (error) {
+      console.error("Error adding collaborator:", error);
       return res.status(500).json({
         success: false,
         message: "Failed to add collaborator",
@@ -592,6 +608,8 @@ class ProjectsController {
         message: "Collaborator removed successfully",
       });
     } catch (error) {
+      console.error("Full error details:", error);
+
       return res.status(error.response?.status || 500).json({
         success: false,
         message: "Failed to remove collaborator",
@@ -611,6 +629,12 @@ class ProjectsController {
             "Missing required parameters. project_id and project_name are required.",
         });
       }
+
+      console.log("Requesting report for:", {
+        project_id,
+        email,
+        project_name,
+      });
 
       // Create form data
       const formData = new FormData();
@@ -636,10 +660,15 @@ class ProjectsController {
         validateStatus: false,
       });
 
+      // Log response status and headers
+      console.log("Python API response status:", response.status);
+      console.log("Python API response headers:", response.headers);
+
       // Check if the response is an error
       if (response.status !== 200) {
         if (response.data instanceof Buffer) {
           const errorMessage = Buffer.from(response.data).toString("utf-8");
+          console.log("Error response from Python API:", errorMessage);
           try {
             const parsedError = JSON.parse(errorMessage);
             return res.status(response.status).json({
@@ -662,6 +691,7 @@ class ProjectsController {
       // Check if we actually got PDF data
       const contentType = response.headers["content-type"];
       if (!contentType || !contentType.includes("application/pdf")) {
+        console.log("Unexpected content type:", contentType);
         return res.status(500).json({
           error: "Server did not return a PDF file",
           contentType,
@@ -681,6 +711,7 @@ class ProjectsController {
       // Send the PDF data
       return res.send(response.data);
     } catch (error) {
+      console.error("Error in downloadReport:", error);
       return res.status(500).json({
         error: "Internal server error while generating report",
         message: error.message,

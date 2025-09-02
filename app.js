@@ -33,6 +33,15 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Add basic endpoints
+app.get('/', (req, res) => {
+  res.json({ message: 'Harmony Backend API', status: 'running' });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
 app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
@@ -43,16 +52,20 @@ app.use('/api/diagram', diagramRoutes);
 app.use('/api/summary', summaryRoutes);
 app.use('/api', assistantRoutes);
 
+// Start server first, then try to connect to database
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
+
+// Try to connect to database
 sequelize
   .sync({ logging: console.log })
   .then(() => {
     console.log('Database connected successfully.');
-    app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
-    });
   })
   .catch((err) => {
     console.error('Unable to connect to the database:', err);
+    console.log('Server will continue running without database connection');
   });
 
 // Error handling middleware
