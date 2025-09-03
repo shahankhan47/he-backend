@@ -1,7 +1,7 @@
 const WebSocket = require("ws")
 
 function setupWebSocketProxy(server) {
-  const wss = new WebSocket.WebSocketServer({ server, path: "/api/chat" });
+  const wss = new WebSocket.WebSocketServer({ server, path: "/api/chat-pro" });
 
   wss.on("connection", (clientWs, req) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
