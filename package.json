@@ -30,6 +30,7 @@
     "pg-hstore": "^2.3.4",
     "sequelize": "^6.37.3",
     "winston": "^3.17.0",
+    "ws": "^8.18.3",
     "yup": "^1.4.0"
   },
   "devDependencies": {
